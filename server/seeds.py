@@ -10,6 +10,8 @@ fake = Faker()
 with app.app_context():
 
     itemstatus = ['lost' , 'found' , 'delivered']
+    passwordarray =['kej' , 'jek' , 'lam' , 'vedit' ,'duds']
+    adminapproved = [True ,False]
     claimsstatus = [ True , False]
     categories = ['electronic ', 'wearable']
     Role = ['Admin' , 'User']
@@ -38,6 +40,7 @@ with app.app_context():
         userobject = User(
             username = fake.name() ,
             email = fake.email() ,
+            password = random.choice(passwordarray) ,
             role = random.choice(Role)
         )
         users.append(userobject)
@@ -57,6 +60,7 @@ with app.app_context():
             user_reported_id = random.choice(users_ids) ,
             image_url = random.choice(image_url) ,
             status =random.choice(itemstatus) ,
+            admin_approved = random.choice(adminapproved) ,
             categories = random.choice(categories)
         )
 

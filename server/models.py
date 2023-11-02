@@ -31,6 +31,7 @@ class Item(db.Model):
     categories = db.Column(db.String)
     reward = db.Column(db.String)
     status = db.Column(db.String)
+    admin_approved = db.Column(db.Boolean , default =False)
     reported_at = db.Column(db.DateTime, server_default=db.func.now())
 
     # Relationship with User (User who reported)
