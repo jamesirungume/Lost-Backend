@@ -60,6 +60,7 @@ with app.app_context():
             user_reported_id = random.choice(users_ids) ,
             image_url = random.choice(image_url) ,
             status =random.choice(itemstatus) ,
+            reward = random.choice([200 ,300,400]) ,
             admin_approved = random.choice(adminapproved) ,
             categories = random.choice(categories)
         )
@@ -95,11 +96,11 @@ with app.app_context():
 
     print ("🦸‍♀️ seeding claims..")
     claims = []
-    for i in range(20):
+    for i in range(7):
         claimssobject = Claim(
-            item_id = random.choice(itemsid) ,
+            item_name= [i for i in range(lostitems)],
             user_id = random.choice(users_ids) ,
-            status = random.choice(claimsstatus)
+            status = 'notclaimed'
         )
         claims.append(claimssobject)
         db.session.add_all(claims)

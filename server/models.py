@@ -1,3 +1,4 @@
+
 from sqlalchemy import MetaData
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship
@@ -65,9 +66,12 @@ class Claim(db.Model):
     __tablename__ = 'claims'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    item_id = db.Column(db.Integer, db.ForeignKey('items.id'))
+    item_name = db.Column(db.Integer, db.ForeignKey('items.id'))
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     status = db.Column(db.String, nullable=False)
+    item_description = db.Column(db.String)
+    image_url = db.Column(db.String)
+
     
 class Payment(db.Model):
     __tablename__ = 'payments'

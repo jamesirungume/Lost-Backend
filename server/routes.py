@@ -1,16 +1,16 @@
 from flask import Flask ,request
 from flask_sqlalchemy import SQLAlchemy
 from flask_restx import Api, Namespace, Resource, fields
-from models import User, db , Item , Reward
+from models import User, db , Item , Reward,Claim
 from flask_migrate import Migrate
 import secrets
 from flask_jwt_extended import JWTManager
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
+from flask_cors import CORS
 
 # Initialize Flask app
 app = Flask(__name__)
-
-
+CORS(app, resources={'/*': {'origins': '*'}})
 
 secret_key = secrets.token_hex(16)
 app.config['SECRET_KEY'] = secret_key
@@ -93,7 +93,20 @@ pending_item_schema = api.model('lostitem' ,{
     'item_description': fields.String(description='Description of the item'),
     'status' : fields.String ,
 })
-
+claim_item_schema = ns.model('claimeditem',{
+    'id':fields.Integer,
+    'item_description':fields.String,
+    'image_url': fields.String,
+    'item_name': fields.String ,
+    'user_id': fields.Integer,
+    'status': fields.String         
+})
+claim_item_schemaReturn  = ns.model('claimeditem',{
+    'id':fields.Integer,
+    'item_name': fields.String ,
+    'user_id': fields.Integer,
+    'status': fields.String         
+})
 
 
 
@@ -167,30 +180,23 @@ class PostItemlost(Resource):
     @ns.expect(lost_item_schema)
     def post(self):
         try:
-            data = request.json  # Get the JSON data from the request
-
+            data = request.get_json() 
+              # Get the JSON data from the request
+            
+            
             new_lostitem = Item(
                 item_name=data.get('item_name'),
                 item_description=data.get('item_description'),
                 image_url=data.get('image_url'),
                 reward=data.get('reward'),
-                status='lost',
+                
                 user_reported_id=data.get('user_reported_id')
             )
 
             db.session.add(new_lostitem)
             db.session.commit()
 
-            return {
-                "message": "Transaction created successfully",
-                "lostitem": {
-                    "item_name": new_lostitem.item_name,
-                    "item_description": new_lostitem.item_description,
-                    'image_url': new_lostitem.image_url,
-                    'reward': new_lostitem.reward,
-                    'status': new_lostitem.status
-                }
-            }, 201
+           
 
         except Exception as e:
             db.session.rollback()
@@ -275,6 +281,104 @@ class ApproveFoundItem(Resource):
             return {"message": "Found item approved by admin"}, 200
         else:
             return {"error": "Item not found or not in 'pending' status"}, 404
+        
+        
+@ns.route('/found_items')
+class ListFoundItems(Resource):
+    def get(self):
+        found_items = Item.query.filter_by(status='found').all()
+        if found_items:
+            items = [
+                {
+                    'id': item.id,
+                    'item_name': item.item_name,
+                    'item_description': item.item_description,
+                    'image_url': item.image_url,
+                    'categories': item.categories,
+                } for item in found_items
+            ]
+            return {'found_items': items}, 200
+        else:
+            return {'message': 'No found items found'}, 200
+  
+@ns.route('/lostitems/<int:id>')
+class Deletetransaction(Resource):   
+    def delete(self ,id):
+        transaction = Item.query.filter_by(id=id).first()
+        db.session.delete(transaction)
+        db.session.commit()
+
+        response_dict = {
+            "message" : "record succefully deleted"
+        }
+        return response_dict, 200
+    
+
+    
+# -----------------------------------------------------claim logic---------------------------------------------------------------
+@ns.route('/claimitem')
+class Claimfounditem(Resource):
+    @ns.expect(claim_item_schema)
+    def post(self):
+        try:
+            data = request.json  # Get the JSON data from the request
+
+            new_claimeditem = Claim(
+                item_name=data.get('item_name'),
+                user_id=data.get('user_id'),
+                status= 'notclaimed',
+            )
+
+            db.session.add(new_claimeditem)
+            db.session.commit()
+
+            return {
+                "message": "Item claimed. Awaiting admin approval.",
+                "founditem": {
+                    "item_iname": new_claimeditem.item_name,
+                    "user_id": new_claimeditem.user_id,
+                    'status': new_claimeditem.status
+                }
+            }, 201
+
+        except Exception as e:
+            db.session.rollback()
+            return {
+                "message": "Failed to claim item",
+                "error": str(e)
+            }, 500
+        
+@ns.route('/approve_claimed_item/<int:item_id>')
+class ApproveClaimedItem(Resource):
+    def put(self, item_id):
+        claim_item = Claim.query.get(item_id)
+
+        if claim_item and claim_item.status == 'notclaimed':
+            claim_item.status = 'claimed'
+            db.session.commit()
+            return {"message": "Claimed item approved by admin"}, 200
+        else:
+            return {"error": "Item not claimed "}, 404
+        
+@ns.route('/pendingclaim_items')
+class get_pending_items(Resource):
+    @ns.marshal_list_with(claim_item_schema)
+    def get(self):
+     pending_items = Claim.query.filter_by(status='notclaimed').all()
+     if pending_items:
+        return pending_items
+     else:
+        return {'message': 'No pending items'}, 200
+     
+@ns.route('/returned_items')
+class get_returned_items(Resource):
+    @ns.marshal_list_with(claim_item_schemaReturn )
+    def get(self):
+     pending_items = Claim.query.filter_by(status='claimed').all()
+     if pending_items:
+        return pending_items
+     else:
+        return {'message': 'No pending items'}, 200
 
 # Main entry point
 if __name__ == '__main__':
