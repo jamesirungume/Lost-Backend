@@ -1,7 +1,7 @@
 from flask import Flask ,request
 from flask_sqlalchemy import SQLAlchemy
 from flask_restx import Api, Namespace, Resource, fields
-from models import User, db , Item , Reward,Claim
+from models import User, db , Item , Reward,Claim,Comment
 from flask_migrate import Migrate
 import secrets
 from flask_jwt_extended import JWTManager
@@ -42,6 +42,7 @@ users_schema = api.model('users',{
 })
 
 user_input_schema = api.model('user_input',{
+    'id':fields.Integer,
     "username": fields.String,
     "password": fields.String,
     "email": fields.String,
@@ -49,6 +50,7 @@ user_input_schema = api.model('user_input',{
 })
 
 lost_item_schema = api.model('item', {
+    'id':fields.Integer,
     'item_name': fields.String(required=True, description='Name of the item'),
     'item_description': fields.String(description='Description of the item'),
     'image_url': fields.String(description='URL of the item image'),
@@ -99,13 +101,8 @@ claim_item_schema = ns.model('claimeditem',{
     'image_url': fields.String,
     'item_name': fields.String ,
     'user_id': fields.Integer,
-    'status': fields.String         
-})
-claim_item_schemaReturn  = ns.model('claimeditem',{
-    'id':fields.Integer,
-    'item_name': fields.String ,
-    'user_id': fields.Integer,
-    'status': fields.String         
+    'status': fields.String,
+    'category': fields.String      
 })
 
 
@@ -120,61 +117,104 @@ class Users(Resource):
         users = User.query.all()
         return users, 200
     
+\
+# Signup endpoint
 @ns.route('/signup')
 class Signup(Resource):
     @ns.expect(user_input_schema)
     def post(self):
-        data = request.get_json() 
+        data = request.get_json()
 
         username = data.get('username')
         password = data.get('password')
         email = data.get('email')
         role = data.get('role')
 
-        if not (username and password and email):
-            return {'message': 'Missing username, password, or email'}, 400
+        if not (username and password and email and role):
+            return {'message': 'Missing required details'}, 400
 
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
             return {'message': 'Email already exists'}, 400
 
-        new_user = User(username=username,
-                         password=password, 
-                         email=email,
-                         role = role
-                         )
-
+        new_user = User(username=username, password=password, email=email, role=role)
         db.session.add(new_user)
         db.session.commit()
 
-        return {'message': 'User created successfully'}, 201
-    
+        access_token = create_access_token(identity={'id': new_user.id, 'role': new_user.role})
+
+        return {
+            'access_token': access_token,
+            'username': new_user.username,
+            'role': new_user.role
+        }, 201
+
+# Login endpoint
 @ns.route('/login')
 class Login(Resource):
-    @ns.expect(user_login_schema)
+    @ns.expect(user_input_schema)
     def post(self):
         data = request.get_json()
-        # check whether data is missing or if the username or 'password' are missing
+
         username = data.get('username')
         password = data.get('password')
-        if not(username and password):
-            return{
-                'message': 'Missing username , password'
-            } , 400
-        
-        # query to database to find the user with the provided username
-        user = User.query.filter_by(username = username).first()
-        if not user:
-            return {
-                'message' : 'could Not Verify'
-            } , 401
-        
-        access_token = create_access_token(identity=user.id)
+        if not (username and password):
+            return {'message': 'Missing username or password'}, 400
+
+        user = User.query.filter_by(username=username).first()
+        if not user or user.password != password:  # Use secure password hashing in production
+            return {'message': 'Invalid username or password'}, 401
+
+        access_token = create_access_token(identity={'id': user.id, 'role': user.role})
+
         return {
-            'access_token': access_token ,
-            'username' : user.username
-        } , 201
-        
+            'access_token': access_token,
+            'username': user.username,
+            'role': user.role
+        }, 200
+    
+
+@ns.route('/itemlost/<int:item_id>')  # Use the item_id as a parameter in the URL
+class UpdateItemlost(Resource):
+
+    @ns.expect(lost_item_schema)
+    def put(self, item_id):
+        try:
+            # Attempt to retrieve the item with the given item_id
+            lost_item = Item.query.get(item_id)
+
+            if lost_item:
+                data = request.json  # Get the JSON data from the request
+
+                # Update the item fields with the new data
+                lost_item.item_name = data.get('item_name')
+                lost_item.item_description = data.get('item_description')
+                lost_item.image_url = data.get('image_url')
+                lost_item.reward = data.get('reward')
+                # You can update other fields as needed
+
+                db.session.commit()
+
+                return {
+                    "message": f"Lost item with ID {item_id} updated successfully",
+                    "lostitem": {
+                        "item_name": lost_item.item_name,
+                        "item_description": lost_item.item_description,
+                        'image_url': lost_item.image_url,
+                        'reward': lost_item.reward,
+                        'status': lost_item.status
+                    }
+                }, 200
+            else:
+                return {
+                    "error": f"Lost item with ID {item_id} not found"
+                }, 404
+        except Exception as e:
+            db.session.rollback()
+            return {
+                "message": "Failed to update the lost item",
+                 "error": str(e)
+            }, 500
 @ns.route('/itemlost')
 class PostItemlost(Resource):
     @ns.expect(lost_item_schema)
@@ -189,6 +229,7 @@ class PostItemlost(Resource):
                 item_description=data.get('item_description'),
                 image_url=data.get('image_url'),
                 reward=data.get('reward'),
+                status= 'lost',
                 
                 user_reported_id=data.get('user_reported_id')
             )
@@ -234,7 +275,7 @@ class Reportfounditem(Resource):
                 item_name=data.get('item_name'),
                 item_description=data.get('item_description'),
                 image_url=data.get('image_url'),
-                status='pending',
+                status='pending_found_items',
                 user_reported_id=data.get('user_reported_id')
             )
 
@@ -263,7 +304,7 @@ class Reportfounditem(Resource):
 class get_pending_items(Resource):
     @ns.marshal_list_with(pending_item_schema)
     def get(self):
-     pending_items = Item.query.filter_by(status='pending').all()
+     pending_items = Item.query.filter_by(status='pending_found_items').all()
      if pending_items:
         return pending_items
      else:
@@ -274,7 +315,7 @@ class ApproveFoundItem(Resource):
     def put(self, item_id):
         found_item = Item.query.get(item_id)
 
-        if found_item and found_item.status == 'pending':
+        if found_item and found_item.status == 'pending_found_items':
             found_item.status = 'found'
             found_item.admin_approved = True
             db.session.commit()
@@ -324,9 +365,46 @@ class Claimfounditem(Resource):
             data = request.json  # Get the JSON data from the request
 
             new_claimeditem = Claim(
+                image_url = data.get('image_url'),
+                item_description = data.get('item_description'),
                 item_name=data.get('item_name'),
                 user_id=data.get('user_id'),
                 status= 'notclaimed',
+            )
+
+            db.session.add(new_claimeditem)
+            db.session.commit()
+
+            return {
+                "message": "Item claimed. Awaiting admin approval.",
+                "founditem": {
+                    "item_iname": new_claimeditem.item_name,
+                    "user_id": new_claimeditem.user_id,
+                    'status': new_claimeditem.status
+                }
+            }, 201
+
+        except Exception as e:
+            db.session.rollback()
+            return {
+                "message": "Failed to claim item",
+                "error": str(e)
+            }, 500
+        
+
+@ns.route('/claimItem')
+class ClaimFounditem(Resource):
+    @ns.expect(claim_item_schema)
+    def post(self):
+        try:
+            data = request.json  # Get the JSON data from the request
+
+            new_claimeditem = Claim(
+                image_url = data.get('image_url'),
+                item_description = data.get('item_description'),
+                item_name=data.get('item_name'),
+                user_id=data.get('user_id'),
+                status= data.get('status')
             )
 
             db.session.add(new_claimeditem)
@@ -353,7 +431,7 @@ class ApproveClaimedItem(Resource):
     def put(self, item_id):
         claim_item = Claim.query.get(item_id)
 
-        if claim_item and claim_item.status == 'notclaimed':
+        if claim_item and claim_item.status == 'notclaimed' :
             claim_item.status = 'claimed'
             db.session.commit()
             return {"message": "Claimed item approved by admin"}, 200
@@ -364,21 +442,62 @@ class ApproveClaimedItem(Resource):
 class get_pending_items(Resource):
     @ns.marshal_list_with(claim_item_schema)
     def get(self):
-     pending_items = Claim.query.filter_by(status='notclaimed').all()
-     if pending_items:
-        return pending_items
-     else:
-        return {'message': 'No pending items'}, 200
+        pending_claims = Claim.query.filter_by(status='notclaimed').all()
+        pending_items = Item.query.filter_by(status='pending_found_items').all()
+
+        if pending_claims or pending_items:
+            return pending_claims + pending_items  # Merge the results and return
+        else:
+            return {'message': 'No pending items'}, 200
+
      
 @ns.route('/returned_items')
 class get_returned_items(Resource):
-    @ns.marshal_list_with(claim_item_schemaReturn )
+    @ns.marshal_list_with(claim_item_schema )
     def get(self):
      pending_items = Claim.query.filter_by(status='claimed').all()
      if pending_items:
         return pending_items
      else:
         return {'message': 'No pending items'}, 200
+     
+@ns.route('/comments')
+class CommentResource(Resource):
+    @ns.marshal_list_with(comment_model)
+    def get(self):
+        comments = Comment.query.all()
+        return comments, 200
+
+    @ns.expect(comment_model)
+    def post(self):
+        try:
+            data = request.json
+            new_comment = Comment(
+                comment=data.get('comment'),
+                lostitem_id=data.get('lostitem_id')
+            )
+            db.session.add(new_comment)
+            db.session.commit()
+
+            return {
+                "message": "Comment added successfully",
+                "comment": {
+                    "id": new_comment.id,
+                    "comment": new_comment.comment,
+                    "lostitem_id": new_comment.lostitem_id
+                }
+            }, 201
+
+        except Exception as e:
+            db.session.rollback()
+            return {
+                "message": "Failed to add a comment",
+                "error": str(e)
+            }, 500
+
+     
+
+
 
 # Main entry point
 if __name__ == '__main__':

@@ -29,18 +29,19 @@ class Item(db.Model):
     item_name = db.Column(db.String)
     item_description = db.Column(db.String)
     image_url = db.Column(db.String)
+   
     categories = db.Column(db.String)
     reward = db.Column(db.String)
     status = db.Column(db.String)
     admin_approved = db.Column(db.Boolean , default =False)
     reported_at = db.Column(db.DateTime, server_default=db.func.now())
-
+    
     # Relationship with User (User who reported)
     user_reported_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     user_reported = relationship('User', back_populates='lostitems_reported')
 
     # Relationship with Comment (Comment on)
-    comments = relationship('Comment', back_populates='lostitem')
+    comments = relationship('Comment', backref='lostitem')
 
    
 class Reward(db.Model):
@@ -60,7 +61,7 @@ class Comment(db.Model):
     
     # Relationship with Item (Comment on)
     lostitem_id = db.Column(db.Integer, db.ForeignKey('items.id'))
-    lostitem = relationship('Item', back_populates='comments')
+    
     
 class Claim(db.Model):
     __tablename__ = 'claims'
