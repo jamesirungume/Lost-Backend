@@ -6,7 +6,8 @@ bcrypt==4.0.1
 blinker==1.7.0; python_version >= '3.8'
 click==8.1.7; python_version >= '3.7'
 faker>=4.0.0,<5.0.0
-flask==2.0.0,<3.0.0
+flask==2.2.2
+flask-sqlalchemy==3.0.2
 flask-cors==4.0.0
 flask-jwt-extended==4.5.3
 flask-marshmallow==0.15.0
@@ -14,7 +15,7 @@ flask-migrate==4.0.5
 flask-restful==0.3.10
 flask-restx==1.2.0
 flask-reuploaded
-flask-sqlalchemy==3.1.1; python_version >= '3.8'
+
 flask-uploads==0.2.1
 flask-wtf
 greenlet==3.0.1; platform_machine == 'aarch64' or (platform_machine == 'ppc64le' or (platform_machine == 'x86_64' or (platform_machine == 'amd64' or (platform_machine == 'AMD64' or (platform_machine == 'win32' or platform_machine == 'WIN32')))))
