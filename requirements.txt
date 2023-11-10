@@ -5,7 +5,7 @@ attrs==23.1.0; python_version >= '3.7'
 bcrypt==4.0.1
 blinker==1.7.0; python_version >= '3.8'
 click==8.1.7; python_version >= '3.7'
-faker==19.13.0
+faker
 flask==2.3.3
 flask-cors==4.0.0
 flask-jwt-extended==4.5.3
