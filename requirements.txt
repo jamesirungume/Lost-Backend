@@ -13,7 +13,7 @@ flask-marshmallow==0.15.0
 flask-migrate==4.0.5
 flask-restful==0.3.10
 flask-restx==1.2.0
-flask-reuploaded==1.4.0
+flask-reuploaded
 flask-sqlalchemy==3.1.1; python_version >= '3.8'
 flask-uploads==0.2.1
 flask-wtf==1.2.1
