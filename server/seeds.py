@@ -1,120 +1,106 @@
 from faker import Faker
 import random
-from routes import app
+from routes import app, db
 from datetime import datetime
 
-from models import db , User , Comment, Reward  , Item , Claim ,Payment
+from models import User, Comment, Reward, Item, Claim, Payment
 
 fake = Faker()
 
 with app.app_context():
 
-    itemstatus = ['lost' , 'found' , 'claimed','pending_found_items','notclaimed']
-    passwordarray =['kej' , 'jek' , 'lam' , 'vedit' ,'duds']
-    adminapproved = [True ,False]
-    claimsstatus = [ True , False]
-    categories = ['electronic ', 'wearable']
-    Role = ['Admin' , 'User']
-    lostitems = [ 'laptop' , 'Earphone' , 'Airpod ', 'Charger' , 'Phone' , 'Mouse','Flashdisks']
-    image_url =['https://www.lenovo.com/medias/lenovo-laptop-ideapad-3-14-intel-subseries-hero.png?context=bWFzdGVyfHJvb3R8MjY5MjEzfGltYWdlL3BuZ3xoODYvaDUzLzE0MTg2OTE5NTkxOTY2LnBuZ3w2ODgwOTdhZDhlODAwNTYzZmVlNDcwNzE5MGI3MzEzMWNiMTIxYmY5NWE3MzcxZDA1NzM2MzkwNWRlYzQ0MDU3'
-                , 'https://rukminim2.flixcart.com/image/850/1000/l4a7pu80/battery-charger/c/j/a/33w-vooc-dart-flash-dh593-with-type-c-cable-charging-adapter-original-imagf7mgjty9z8sg.jpeg?q=90'
-                , 'https://marvelafrica.co.ke/wp-content/uploads/2023/04/Apple-Airpods-Pro-2nd-gen-3.jpeg' ,
-                'https://www.costco.co.uk/medias/sys_master/images/h37/hc3/119433914056734.jpg' ,
-                'https://www.bigw.com.au/medias/sys_master/images/images/h05/h67/35171080798238.jpg' ,
-                'https://oneplus.co.ke/wp-content/uploads/2022/09/OnePlus-Nord-Wired-Earphones.png' ,
-                'https://www.techyshop.co.ke/wp-content/uploads/2015/11/8GB-TRANSCEND-HP-SANDISK-FLASH-DISK-1.jpg'
-                ]
-    print(len(image_url))
+    db.drop_all()
+    db.create_all()
 
-    User.query.delete()
-    Item.query.delete()
-    Comment.query.delete()
-    Reward.query.delete()
-    Claim.query.delete()
-    Payment.query.delete()
+    def generate_fake_users(num_users):
+        users = []
+        for _ in range(num_users):
+            username = fake.user_name()
+            email = fake.email()
+            password = fake.password()
+            role = random.choice(['user', 'admin'])
+            user = User(username=username, email=email, password=password, role=role)
+            users.append(user)
+        return users
 
-    print("🦸‍♀️ Seeding users...")
-    users_ids = []
-    users = []
-    for i in range(20):
-        userobject = User(
-            username = fake.name() ,
-            email = fake.email() ,
-            password = random.choice(passwordarray) ,
-            role = random.choice(Role)
-        )
-        users.append(userobject)
-        db.session.add_all(users)
-        print(users)
-        db.session.commit()
-        users_ids.append(userobject.id)
-
-    print("🦸‍♀️ seeding items...")
-    
-    itemsid = []
-    itemss =[]
-    for i in range(20):
-        lostitemobject = Item(
-            item_name = random.choice(lostitems) ,
-            item_description = fake.sentence() ,
-            user_reported_id = random.choice(users_ids) ,
-            image_url = random.choice(image_url) ,
-            status =random.choice(itemstatus) ,
-            reward = random.choice([200 ,300,400]) ,
-            admin_approved = random.choice(adminapproved) ,
-            categories = random.choice(categories)
-        )
-
-        itemss.append(lostitemobject)
-        print(itemss)
-        db.session.add_all(itemss)
-        db.session.commit()
-        itemsid.append(lostitemobject.id)
-    
-    print ("🦸‍♀️ seeding comment..")
-
-    comments = []
-    for i in range(20):
-        commentobject = Comment(
-            comment = fake.paragraph() ,
-            lostitem_id = random.choice(itemsid)
+    def generate_fake_items(users, num_items):
+        items = []
+        for _ in range(num_items):
+            item_name = fake.word()
+            item_description = fake.text()
+            image_url = fake.image_url()
+            reward = str(random.randint(1, 50))
+            user_reported_id = random.choice(users).id
+            status = random.choice(['lost', 'found'])
+            item = Item(
+                item_name=item_name,
+                item_description=item_description,
+                image_url=image_url,
+                reward=reward,
+                user_reported_id=user_reported_id,
+                status=status
             )
-        comments.append(commentobject)
-        db.session.add_all(comments)
+            items.append(item)
+        return items
+
+    def generate_fake_rewards(items):
+        rewards = []
+        for item in items:
+            rewardamount = str(random.randint(5, 30))
+            reward = Reward(rewardamount=rewardamount, lostitem_id=item.id)
+            rewards.append(reward)
+        return rewards
+
+    def generate_fake_claims(users, items):
+        claims = []
+        for _ in range(len(items) // 2):  # Generate claims for half of the items
+            item = random.choice(items)
+            user_id = random.choice(users).id
+            status = random.choice(['claimed', 'notclaimed'])
+            claim = Claim(
+                item_description=fake.text(),
+                image_url=fake.image_url(),
+                item_name=fake.word(),
+                user_id=user_id,
+                status=status
+            )
+            claims.append(claim)
+        return claims
+
+    def generate_fake_comments(items, num_comments):
+        comments = []
+        for _ in range(num_comments):
+            item = random.choice(items)
+            comment = Comment(comment=fake.sentence(), lostitem_id=item.id)
+            comments.append(comment)
+        return comments
+
+    def seed():
+        num_fake_users = 10
+        num_fake_items = 20
+        num_fake_comments = 30
+
+        fake_users = generate_fake_users(num_fake_users)
+        db.session.add_all(fake_users)
         db.session.commit()
 
-    print ("🦸‍♀️ seeding rewards..")
-    rewards = []
-    for i in range(20):
-        rewardsobject = Reward(
-            rewardamount = round(random.uniform(100.00, 100.00), 2) ,
-            lostitem_id = random.choice(itemsid)
-        )
-        rewards.append(rewardsobject)
-        db.session.add_all(rewards)
+        fake_items = generate_fake_items(fake_users, num_fake_items)
+        db.session.add_all(fake_items)
         db.session.commit()
 
-    print ("🦸‍♀️ seeding claims..")
-    claims = []
-    for i in range(7):
-        claimssobject = Claim(
-            item_name= [i for i in range(lostitems)],
-            user_id = random.choice(users_ids) ,
-            status = 'notclaimed'
-        )
-        claims.append(claimssobject)
-        db.session.add_all(claims)
+        fake_rewards = generate_fake_rewards(fake_items)
+        db.session.add_all(fake_rewards)
         db.session.commit()
 
-    print ("🦸‍♀️ seeding payment..")
-    payments = []
-    for i in range(20):
-        paymentsobject = Payment(
-            reward_id = random.choice(itemsid),
-            payer_user_id =  random.choice(users_ids) ,
-            amount = round(random.uniform(100.00, 100.00), 2) ,
-            payment_date =  datetime.now().date()
-        )
-        payments.append(paymentsobject)
-        db.session.add_all(payments)
+        fake_claims = generate_fake_claims(fake_users, fake_items)
+        db.session.add_all(fake_claims)
         db.session.commit()
+
+        fake_comments = generate_fake_comments(fake_items, num_fake_comments)
+        db.session.add_all(fake_comments)
+        db.session.commit()
+
+        print('Database seeded successfully!')
+
+    if __name__ == '__main__':
+        seed()
